@@ -1,9 +1,12 @@
 import mongoose from "mongoose";
 
 const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) throw new Error("Missing MONGODB_URI in .env.local");
 
-// Type assertion: tell TypeScript MONGODB_URI is a string
+if (!MONGODB_URI) {
+  throw new Error("Missing MONGODB_URI in .env.local");
+}
+
+// 👇 Tell TypeScript this is DEFINITELY a string
 const mongoUri: string = MONGODB_URI;
 
 declare global {
@@ -20,8 +23,11 @@ export async function dbConnect() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, { dbName: "fin_literacy_app" });
+    cached.promise = mongoose.connect(mongoUri, {
+      dbName: "fin_literacy_app",
+    });
   }
+
   cached.conn = await cached.promise;
   return cached.conn;
 }

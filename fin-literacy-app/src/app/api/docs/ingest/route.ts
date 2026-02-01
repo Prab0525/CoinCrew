@@ -37,7 +37,6 @@ export async function POST(req: Request) {
 
   // Embedding on safeSummary (not raw doc)
   const embedding = await embedText(safeSummary);
-  console.log("EMBEDDING_DIMS:", embedding.length);
 
 
   await dbConnect();
