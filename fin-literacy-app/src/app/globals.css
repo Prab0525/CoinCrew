@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
 :root {
+  --pink: #F5D2D2;
+  --yellow: #F8F7BA;
+  --green: #BDE3C3;
+  --blue: #A3CCDA;
+
+  --ink: #0b1220;
+  --inkSoft: rgba(11, 18, 32, 0.72);
+  --card: rgba(255, 255, 255, 0.72);
+  --cardSolid: rgba(255, 255, 255, 0.92);
+}
+
+.react-pdf__Page__canvas {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+
+
+:root {
   --background: #ffffff;
   --foreground: #171717;
 }
