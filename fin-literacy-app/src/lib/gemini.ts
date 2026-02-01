@@ -1,5 +1,6 @@
 // Minimal helper. Person B will expand prompts + parsing.
 // For MVP stubs, we can return mocked data if GEMINI_API_KEY missing.
+import { geminiGenerate } from "@/lib/geminiGenerate";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
