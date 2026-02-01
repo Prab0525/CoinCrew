@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import UploadCard from "./components/UploadCard";
 import dynamic from "next/dynamic";
+import { extractPdfText } from "@/lib/pdfText";
+
 
 const FilePreview = dynamic(() => import("./components/FilePreview"), {
   ssr: false,
@@ -26,6 +29,9 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export default function DocsPage() {
   const [file, setFile] = useState<File | null>(null);
+  const router = useRouter();
+  const [ageRange, setAgeRange] = useState<"8-11" | "12-15" | "16-18">("12-15");
+
 
   const fileUrl = useMemo(() => {
     if (!file) return null;
@@ -111,21 +117,78 @@ export default function DocsPage() {
                 if (!file) return;
 
                 try {
+                  // 1) store file for preview
                   const dataUrl = await fileToDataUrl(file);
-
                   const payload: StoredDocsFile = {
                     name: file.name,
                     type: file.type,
                     dataUrl,
                   };
-
                   sessionStorage.setItem("docs-file", JSON.stringify(payload));
-                  window.location.href = "/docs/result";
+
+                  // 2) TEMP MVP: ask user to paste text (or use your existing extraction if you have it)
+                  // If you already extract PDF text somewhere, replace this prompt with that extracted text.
+                  const docText = await extractPdfText(file);
+                    if (!docText || docText.length < 50) {
+                      alert("Could not read text from this PDF. Try another PDF or copy/paste text.");
+                      return;
+                    }
+
+                  if (!docText || docText.trim().length < 50) {
+                    alert("Please paste at least a little text (50+ chars) so I can explain it.");
+                    return;
+                  }
+                  const trimmedDocText = docText.slice(0, 28000);
+                  console.log("docText length:", docText.length);
+
+
+                  // 3) call backend explain endpoint
+                  const res = await fetch("/api/docs/explain", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      userId: "guest_demo",
+                      ageRange,
+                      docType: "government",
+                      docText: trimmedDocText,
+                    }),
+                  });
+
+                 const text = await res.text();
+                let data: any = null;
+
+                try {
+                  data = JSON.parse(text);
+                } catch {
+                  console.error("Explain returned non-JSON:", text);
+                  alert("Explain returned non-JSON (check console).");
+                  return;
+                }
+
+                if (!res.ok || !data?.ok) {
+                  console.error("Explain error:", data);
+                  alert("Explain failed. Check terminal/console.");
+                  return;
+                }
+
+                  if (!res.ok || !data?.ok) {
+                    console.error("Explain error:", data);
+                    alert("Explain failed. Check terminal/console.");
+                    return;
+                  }
+
+                  // 4) store explain result for /docs/result + chat
+                  sessionStorage.setItem("docs-explain", JSON.stringify(data));
+                  sessionStorage.setItem("docs-ageRange", ageRange);
+
+                  // 5) navigate
+                  router.push("/docs/result");
                 } catch (e) {
                   console.error(e);
-                  alert("Could not read that file. Try another PDF.");
+                  alert("Something went wrong. Check console.");
                 }
               }}
+
             />
           </div>
 

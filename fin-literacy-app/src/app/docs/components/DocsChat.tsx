@@ -10,11 +10,15 @@ type ChatMessage = {
 
 type Props = {
   docName?: string;
+  safeSummary?: string;
+  ageRange?: "8-11" | "12-15" | "16-18" | string;
 };
 
-export default function DocsChat({ docName }: Props) {
+export default function DocsChatWidget({ docName, safeSummary, ageRange }: Props) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "hello",
@@ -43,7 +47,7 @@ export default function DocsChat({ docName }: Props) {
 
   const send = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || sending) return;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -54,14 +58,73 @@ export default function DocsChat({ docName }: Props) {
     setMessages((m) => [...m, userMsg]);
     setInput("");
 
-    const botMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      text:
-        "Got you. Backend chat is not wired yet, but once it is, I’ll answer based on your PDF. For now, tell me what part is confusing and I’ll help you phrase the question super clearly.",
-    };
+    // If summary isn't ready, tell the user nicely
+    if (!safeSummary || safeSummary.trim().length < 5) {
+      const botMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text:
+          "I don’t have the document summary yet 😭 Go back and click **Explain** first, then come back and ask me anything!",
+      };
+      setMessages((m) => [...m, botMsg]);
+      return;
+    }
 
-    setTimeout(() => setMessages((m) => [...m, botMsg]), 350);
+    const typingMsgId = crypto.randomUUID();
+    setMessages((m) => [
+      ...m,
+      { id: typingMsgId, role: "assistant", text: "Typing…" },
+    ]);
+    setSending(true);
+
+    try {
+      const res = await fetch("/api/docs/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ageRange: ageRange === "8-11" || ageRange === "12-15" || ageRange === "16-18" ? ageRange : "12-15",
+          safeSummary,
+          message: trimmed,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(
+          data?.error ? JSON.stringify(data.error) : "Chat request failed"
+        );
+      }
+
+      const replyText =
+        typeof data.reply === "string" && data.reply.trim().length > 0
+          ? data.reply
+          : "Hmm I didn’t get a good answer back. Try asking in a simpler way.";
+
+      // replace "Typing…" message with real reply
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === typingMsgId
+            ? { ...msg, text: replyText }
+            : msg
+        )
+      );
+    } catch (err: any) {
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === typingMsgId
+            ? {
+                ...msg,
+                text:
+                  "Ugh 😭 something broke on the backend. Check the terminal for the error and try again.",
+              }
+            : msg
+        )
+      );
+      console.error(err);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -97,7 +160,9 @@ export default function DocsChat({ docName }: Props) {
                 </div>
                 <div>
                   <div className="text-sm font-extrabold text-black/75">{title}</div>
-                  <div className="text-[11px] text-black/50">Ask follow ups while you view the PDF</div>
+                  <div className="text-[11px] text-black/50">
+                    Ask follow ups while you view the PDF
+                  </div>
                 </div>
               </div>
 
@@ -112,10 +177,7 @@ export default function DocsChat({ docName }: Props) {
             </div>
 
             {/* messages */}
-            <div
-              ref={listRef}
-              className="h-[320px] overflow-auto px-3 py-3"
-            >
+            <div ref={listRef} className="h-[320px] overflow-auto px-3 py-3">
               <div className="space-y-2">
                 {messages.map((m) => (
                   <div
@@ -148,9 +210,10 @@ export default function DocsChat({ docName }: Props) {
                 <button
                   type="button"
                   onClick={send}
-                  className="rounded-2xl bg-[#BDE3C3]/80 px-3 py-2 text-sm font-extrabold text-black/70 hover:bg-[#BDE3C3]"
+                  disabled={sending}
+                  className="rounded-2xl bg-[#BDE3C3]/80 px-3 py-2 text-sm font-extrabold text-black/70 hover:bg-[#BDE3C3] disabled:opacity-60"
                 >
-                  Send
+                  {sending ? "..." : "Send"}
                 </button>
               </div>
 
